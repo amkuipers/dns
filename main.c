@@ -86,6 +86,7 @@ int print_domain(unsigned char *p) {
 #define CONSUME_32BIT(x) (x = (packet[offset] << 24) | (packet[offset + 1] << 16) | (packet[offset + 2] << 8) | packet[offset + 3]); offset += 4;
 
 // Print the DNS request or response
+// length is the length of the response
 void print_packet(unsigned char *response, int length) {
 
   // Parse the DNS packet
@@ -169,7 +170,7 @@ void print_packet(unsigned char *response, int length) {
   // Question section
   // QNAME is the domain name being queried
   printf("[+] QNAME: ");
-  offset += print_domain(response + offset);
+  offset += print_domain(packet + offset);
 
   printf("\n");
 
@@ -194,13 +195,14 @@ void print_packet(unsigned char *response, int length) {
 
     printf("[+] Answer section:\n");
     for (int i = 0; i < ancount + nscount + arcount; i++) {
+
       printf("[+] Answer %2d\n", i + 1); // answer 1, 2, ..
 
       printf("    [+] NAME     : ");
-      unsigned char *p = response + offset;
-      p = print_name(response, p, response + length);
+      unsigned char *p = packet + offset;
+      p = print_name(packet, p, packet + length);
       printf("\n");
-      offset = p - response; 
+      offset = p - packet; 
 
       // TYPE is the type of the resource record (1=A, 2=NS, 5=CNAME, 6=SOA, 12=PTR, 15=MX, 16=TXT, 28=AAAA, 33=SRV, 46=RRSIG, 47=NSEC, 48=DNSKEY, 255=ANY)
       int type;
@@ -227,27 +229,25 @@ void print_packet(unsigned char *response, int length) {
       if (rdlength == 4 && type == 1) {
         /* A Record */
         printf("Address = ");
-        unsigned char *p = response + offset;
+        unsigned char *p = packet + offset;
         printf("%d.%d.%d.%d\n", p[0], p[1], p[2], p[3]);
         offset += rdlength;
 
       } else if (type == 2) {
         /* NS */
         printf("NS : ");
-        unsigned char *p = response + offset;
-        p = print_name(response, p, response+length);
-        offset = p - response; 
-
+        unsigned char *p = packet + offset;
+        p = print_name(packet, p, packet+length);
+        offset = p - packet; 
         printf("\n"); 
+
       } else if (type == 5) {
         // CNAME
         printf("CNAME : ");
-        unsigned char *p = response + offset;
-        p = print_name(response, p, response+length);
-        offset = p - response;
+        unsigned char *p = packet + offset;
+        p = print_name(packet, p, packet+length);
+        offset = p - packet;
         printf("\n");
-
-
 
       } else if (type == 6) {
         /* SOA 
@@ -255,6 +255,8 @@ void print_packet(unsigned char *response, int length) {
         https://datatracker.ietf.org/doc/html/rfc1912
         */
         printf("SOA: type %d rdlen %d \n", type, rdlength);
+        hexdump(packet+offset, rdlength);
+
         // MNAME Primary master name
         // RNAME email aa\.bb.domain.com ==> aa.bb@domain.com
         // SERIAL for this zone (date + 05 = 2017031405 )
@@ -263,14 +265,16 @@ void print_packet(unsigned char *response, int length) {
         // EXPIRE seconds secondary dns 3600000 seconds (1000 hours).
         // MINIMUM seconds TTL 172800 seconds (2 days)
         printf("        SOA: MNAME Primary master name = ");
-        unsigned char *p = response + offset;
-        p = print_name(response, p, response+length); 
-        offset = p - response; 
+
+        unsigned char *p = packet + offset;
+
+        p = print_name(packet, p, packet+length); 
+        offset = p - packet; 
         printf("\n");
 
         printf("        SOA: RNAME email = ");
-        p = print_name(response, p, response+length); 
-        offset = p - response; 
+        p = print_name(packet, p, packet+length); 
+        offset = p - packet; 
         printf("\n");
 
         // SERIAL, REFRESH, RETRY, EXPIRE, MINIMUM
@@ -292,28 +296,30 @@ void print_packet(unsigned char *response, int length) {
         printf("        SOA: EXPIRE  = %d sec\n", expire);
         printf("        SOA: MINIMUM = %d sec\n", minimum);
 
-        offset = p - response;
 
-        if (offset < rdlength) {
-          printf("MORE DATA!!!");
-        }
+
+        //offset = p - packet;
+
+        //if (offset <= rdlength) {
+        //  printf("MORE DATA!!!");
+       // }
 
 
       } else if (type == 15 && rdlength > 3) {
         /* MX Record */
-        unsigned char *p = response + offset;
+        unsigned char *p = packet + offset;
         const int preference = (p[0] << 8) + p[1];
         printf("MX: pref: %d ", preference);
         printf("= ");
-        p=print_name(response, p+2, response+length); printf("\n");
-        offset = p - response; 
+        p=print_name(packet, p+2, packet+length); printf("\n");
+        offset = p - packet; 
 
       } else if (type == 13) {
         /* HINFO Record */
         printf("HINFO: ");
-        //hexdump(response+offset, rdlength);
+        //hexdump(packet+offset, rdlength);
 
-        unsigned char *p = response + offset;
+        unsigned char *p = packet + offset;
         int len = p[0];
         printf("CPU: ");
         for (int j = 0; j < len; j++) {
@@ -339,7 +345,7 @@ void print_packet(unsigned char *response, int length) {
           printf("        [+] TXT: \"");
 
           for (int j = 0; j < len; j++) {
-            printf("%c", response[offset++]);
+            printf("%c", packet[offset++]);
           }
           printf("\"");
         } while (len == 0xFF);
@@ -349,7 +355,7 @@ void print_packet(unsigned char *response, int length) {
       } else if (rdlength == 16 && type == 28) {
         /* AAAA Record */
         printf("AAAA: Address ");
-        unsigned char *p = response + offset;
+        unsigned char *p = packet + offset;
 
         int j;
         for (j = 0; j < rdlength; j+=2) {
@@ -362,24 +368,27 @@ void print_packet(unsigned char *response, int length) {
       } else if (type == 46) {
         // RRSIG
         printf("RRSIG: type %d rdlen %d \n", type, rdlength);
-        hexdump(response+offset, rdlength);
-        // TYPE Covered
-        // ALGORITHM
-        // LABELS
-        // ORIGINAL TTL
-        // SIGNATURE EXPIRATION
-        // SIGNATURE INCEPTION
-        // KEY TAG
-        // SIGNER'S NAME
-        // SIGNATURE
+        hexdump(packet+offset, rdlength);
+        // s is start of answer
+        int s = offset;
+        //printf("DEBUG: offset %d rdlength %d\n", offset, rdlength);
+
+        // TYPE Covered is the type of the RRset that is covered by this RRSIG record
         int type_covered;
+        // ALGORITHM is the cryptographic algorithm used to create the signature
         int algorithm;
+        // LABELS is the number of labels in the original RRSIG RR owner name
         int labels;
+        // ORIGINAL TTL is the TTL of the covered RRset as it appears in the authoritative zone
         int original_ttl;
+        // SIGNATURE EXPIRATION is the time at which the signature expires
         int signature_expiration;
+        // SIGNATURE INCEPTION is the time at which the signature was created
         int signature_inception;
+        // KEY TAG is the key tag value of the DNSKEY RR that validates this signature
         int key_tag;
-        int signer_name_length;
+        // SIGNER'S NAME is the owner name of the DNSKEY RR that a validator is supposed to use to validate this signature
+        //int signer_name_length;
 
         CONSUME_16BIT(type_covered);
         CONSUME_8BIT(algorithm);
@@ -388,32 +397,36 @@ void print_packet(unsigned char *response, int length) {
         CONSUME_32BIT(signature_expiration);
         CONSUME_32BIT(signature_inception);
         CONSUME_16BIT(key_tag);
-        //CONSUME_8BIT(signer_name_length);
 
-        printf("        RRSIG: TYPE Covered = %d\n", type_covered);
+        printf("        RRSIG: TYPE Covered = %d=%s\n", type_covered, get_type(type_covered));
         printf("        RRSIG: ALGORITHM = %d (13=ECDSA Curve P-256 with SHA-256)\n", algorithm);
-        printf("        RRSIG: LABELS = %d\n", labels);
+        printf("        RRSIG: LABELS = %d (number of labels in the original RRSIG RR owner name)\n", labels);
         printf("        RRSIG: ORIGINAL TTL = %d\n", original_ttl);
         printf("        RRSIG: SIGNATURE EXPIRATION = %d (timestamp)\n", signature_expiration);
         printf("        RRSIG: SIGNATURE INCEPTION = %d (timestamp)\n", signature_inception);
         printf("        RRSIG: KEY TAG = %d\n", key_tag);
+        //printf("DEBUG: offset %d rdlength %d\n", offset, rdlength);
+
         printf("        RRSIG: SIGNER'S NAME = ");
-
-        offset += print_domain(response + offset);
-
+        offset += print_domain(packet + offset);
         printf("\n");
+        //printf("DEBUG: offset %d rdlength %d\n", offset, rdlength);
         printf("        RRSIG: SIGNATURE = ");
-        for (int j = 0; j < rdlength - 18; j++) {
-          printf("%02x", response[offset++]);
+        // SIGNATURE is the cryptographic signature that covers the RRSIG RDATA (excluding the Signature field) and the RRset specified by the RRSIG owner name, RRSIG class, and RRSIG Type Covered field
+        for (int j = offset-s; j < rdlength; j++) {
+          printf("%02x", packet[offset++]);
+          //printf("DEBUG: offset %d %02x rdlength %d\n", offset, packet[offset++], rdlength);
+
         }
         printf("\n");
 
+    
 
       } else {
         printf("    [+] RDATA (raw): ");
 
         for (int j = 0; j < rdlength/*((response[offset - 2] << 8) | response[offset - 1])*/; j++) {
-          printf("%02x", response[offset++]);
+          printf("%02x", packet[offset++]);
         }
         printf("\n");
       }
