@@ -1,3 +1,4 @@
+
 #include "query.h"
 
 void constructDNSQuery(unsigned char *query, int *queryLen, char *hostname, int query_type) {

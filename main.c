@@ -67,7 +67,9 @@ unsigned char *print_names(
 }
 
 // this uses a length byte in front of the domain name, without pointers
-unsigned char * print_domain(unsigned char *p) {
+// returns the length of the domain name
+int print_domain(unsigned char *p) {
+  unsigned char *start = p;
   int len;
   do { 
     len = *p++;
@@ -75,41 +77,46 @@ unsigned char * print_domain(unsigned char *p) {
     p += len;
     if (*p ) printf(".");
   } while (*p > 0);
-  return p;
+  return p - start + 1; // include the 0 at the end
 }
 
 
-#define CONSUME_8BIT(x) (x = response[offset++]);
-#define CONSUME_16BIT(x) (x = (response[offset] << 8) | response[offset + 1]); offset += 2;
-#define CONSUME_32BIT(x) (x = (response[offset] << 24) | (response[offset + 1] << 16) | (response[offset + 2] << 8) | response[offset + 3]); offset += 4;
+#define CONSUME_8BIT(x) (x = packet[offset++]);
+#define CONSUME_16BIT(x) (x = (packet[offset] << 8) | packet[offset + 1]); offset += 2;
+#define CONSUME_32BIT(x) (x = (packet[offset] << 24) | (packet[offset + 1] << 16) | (packet[offset + 2] << 8) | packet[offset + 3]); offset += 4;
 
-
+// Print the DNS request or response
 void print_packet(unsigned char *response, int length) {
 
-  // Parse the DNS response
+  // Parse the DNS packet
+  unsigned char *packet = response;
+
   // Header section
-  // ID
-  printf("[+] ID: 0x%02x%02x; 16bit client id to uniq define the message\n", response[0], response[1]);
+  // ID  to uniquely define the message relationship between query and response
+  printf("[+] ID: 0x%02x%02x; 16bit client id\n", packet[0], packet[1]);
+
   // QR, Opcode, AA, TC, RD
-  const int qr = (response[2] >> 7) & 0x01;
-  printf("[+] QR: %d=%s; 1bit 0=query, 1=response\n", qr, qr ? "response" : "query");
-  const int opcode = (response[2] >> 3) & 0x0f;
-  printf("[+] Opcode: %d; 4bit =", opcode);
+  printf("[+] QR, Opcode, AA, TC, RD: 0x%02x; 8bit\n", packet[2]);
+  const int qr = (packet[2] >> 7) & 0x01;
+  printf("    [+] QR    : %d=%s; 1bit (0=query, 1=response)\n", qr, qr ? "response" : "query");
+  const int opcode = (packet[2] >> 3) & 0x0f;
+  printf("    [+] Opcode: %d; 4bit =", opcode);
   switch(opcode) {
       case 0: printf("standard\n"); break;
       case 1: printf("reverse\n"); break;
       case 2: printf("status\n"); break;
       default: printf("?\n"); break;
   }  
-  const int aa = (response[2] >> 2) & 0x01;
-  printf("[+] AA: %d; 1bit =%s\n", aa, aa ? "authoritative answer" : "");
-  const int tc = (response[2] >> 1) & 0x01;
-  printf("[+] TC: %d; 1bit =%s\n", tc, tc ? "message truncated (should be resend via TCP)" : "");
-  const int rd = response[2] & 0x01;
-  printf("[+] RD: %d; 1bit =%s\n", rd, rd ? "recursion desired" : "");
+  const int aa = (packet[2] >> 2) & 0x01;
+  printf("    [+] AA    : %d; 1bit =%s\n", aa, aa ? "authoritative answer" : "");
+  const int tc = (packet[2] >> 1) & 0x01;
+  printf("    [+] TC    : %d; 1bit =%s\n", tc, tc ? "message truncated (should be resend via TCP)" : "not truncated");
+  const int rd = packet[2] & 0x01;
+  printf("    [+] RD    : %d; 1bit =%s\n", rd, rd ? "recursion desired" : "");
+
 
   if (qr) {
-      const int rcode = response[3] & 0x0F;
+      const int rcode = packet[3] & 0x0F;
       printf("Header RCODE = %d; 4bit ", rcode);
       switch(rcode) {
           case 0: printf("success\n"); break;
@@ -124,12 +131,17 @@ void print_packet(unsigned char *response, int length) {
   }
 
   // RA, Z, RCODE
-  const int ra = (response[3] >> 7) & 0x01;
-  printf("[+] RA: %d\n", ra);
-  const int z = (response[3] >> 4) & 0x07;
-  printf("[+] Z: %d\n", z);
-  const int rcode = response[3] & 0x0f;
-  printf("[+] RCODE: %d\n", rcode);
+  printf("[+] RA, Z, RCODE: 0x%02x; 8bit\n", packet[3]);
+  const int ra = (packet[3] >> 7) & 0x01;
+  printf("    [+] RA   : %d (1=server supports recursion)\n", ra);
+  const int z = (packet[3] >> 4) & 0x07;
+  printf("    [+] Z    : %d (future use)\n", z);
+  const int rcode = packet[3] & 0x0f;
+  printf("    [+] RCODE: %d\n", rcode);
+
+  // RA is set in the response if the server supports recursion
+  // Z is reserved for future use
+  // RCODE is the response code (0=success, 1=format error, 2=server failure, 3=name error, 4=not implemented, 5=refused)
 
   int offset = 4;
   
@@ -143,10 +155,10 @@ void print_packet(unsigned char *response, int length) {
   CONSUME_16BIT(nscount);
   CONSUME_16BIT(arcount);
 
-  printf("[+] QDCOUNT: %d; 16bit number of entries in the query section (fixed 1 when query)\n", qdcount);
-  printf("[+] ANCOUNT: %d; 16bit number of answers\n", ancount);
-  printf("[+] NSCOUNT: %d; 16bit number of name server resource records\n", nscount);
-  printf("[+] ARCOUNT: %d; 16bit number of resource records in the additional records\n", arcount);
+  printf("[+] QDCOUNT: %2d; 16bit number of entries in the query section (fixed 1 when query)\n", qdcount);
+  printf("[+] ANCOUNT: %2d; 16bit number of answers\n", ancount);
+  printf("[+] NSCOUNT: %2d; 16bit number of name server resource records\n", nscount);
+  printf("[+] ARCOUNT: %2d; 16bit number of resource records in the additional records\n", arcount);
 
   // QDCOUNT is the number of entries in the question section of a query.
   // ANCOUNT is the number of resource records in the answer section of a response.
@@ -155,28 +167,27 @@ void print_packet(unsigned char *response, int length) {
 
 
   // Question section
-  // QNAME
+  // QNAME is the domain name being queried
   printf("[+] QNAME: ");
-  //int offset = 12;
-  while (response[offset] != 0) {
-    int len = response[offset++];
-    for (int i = 0; i < len; i++) {
-      printf("%c", response[offset++]);
-    }
-    printf(".");
-  }
+  offset += print_domain(response + offset);
+
   printf("\n");
 
-  offset++;
-
   // QTYPE, QCLASS
+  // QTYPE is the type of the query (1=A, 2=NS, 5=CNAME, 6=SOA, 12=PTR, 15=MX, 16=TXT, 28=AAAA, 33=SRV, 46=RRSIG, 47=NSEC, 48=DNSKEY, 255=ANY)
   int qtype;
+  // QCLASS is the class of the query (1=Internet, 2=CSNET, 3=CHAOS, 4=Hesiod, 255=ANY)
   int qclass;
   CONSUME_16BIT(qtype);
   CONSUME_16BIT(qclass);
 
-  printf("[+] QTYPE: %d; 16bit record type: %s\n", qtype, get_type(qtype));
+  printf("[+] QTYPE : %d=%s; 16bit record type\n", qtype, get_type(qtype));
   printf("[+] QCLASS: %d; 16bit (should be 1=Internet)\n", qclass);
+
+
+  if (qr==0 && (offset < length)) {
+    printf("MORE DATA IN QUERY!!! %d < %d\n", offset, length);
+  }
 
   // Answer section
   if (ancount || nscount || arcount) {
@@ -191,11 +202,15 @@ void print_packet(unsigned char *response, int length) {
       printf("\n");
       offset = p - response; 
 
-      // TYPE, CLASS, TTL, RDLENGTH
+      // TYPE is the type of the resource record (1=A, 2=NS, 5=CNAME, 6=SOA, 12=PTR, 15=MX, 16=TXT, 28=AAAA, 33=SRV, 46=RRSIG, 47=NSEC, 48=DNSKEY, 255=ANY)
       int type;
+      // CLASS is the class of the resource record (1=Internet)
       int class;
+      // TTL is the time in seconds that the answer is allowed to cache
       int ttl;
+      // RDLENGTH is the length of the RDATA field
       int rdlength;
+
       CONSUME_16BIT(type);
       CONSUME_16BIT(class);
       CONSUME_32BIT(ttl);
@@ -206,7 +221,7 @@ void print_packet(unsigned char *response, int length) {
       printf("    [+] TTL      : %u sec; 32bit; %u minutes the answer is allowed to cache\n", ttl, ttl/60);
       printf("    [+] RDLENGTH : %d; 16bit length of rdata\n", rdlength);
 
-      // RDATA
+      // RDATA is the data for the resource record
       printf("    [+] RDATA ");
 
       if (rdlength == 4 && type == 1) {
@@ -314,14 +329,14 @@ void print_packet(unsigned char *response, int length) {
 
       } else if (type == 16) {
         /* TXT Record */
-        printf("TXT: ");
-        hexdump(response+offset, rdlength);
+        //printf("TXT: ");
+        //hexdump(response+offset, rdlength);
         // TCP has 8bit length in front of the TXT data
         int len = 0;
         do {
           CONSUME_8BIT(len);
-          printf("\n    [+] TXT: len %d\n", len);
-          printf("    [+] TXT: \"");
+          printf("\n        [+] TXT: len %d\n", len);
+          printf("        [+] TXT: \"");
 
           for (int j = 0; j < len; j++) {
             printf("%c", response[offset++]);
@@ -329,8 +344,8 @@ void print_packet(unsigned char *response, int length) {
           printf("\"");
         } while (len == 0xFF);
         printf("\n");
-        //offset += rdlength;
-        //printf("\n");
+
+
       } else if (rdlength == 16 && type == 28) {
         /* AAAA Record */
         printf("AAAA: Address ");
@@ -383,10 +398,9 @@ void print_packet(unsigned char *response, int length) {
         printf("        RRSIG: SIGNATURE INCEPTION = %d (timestamp)\n", signature_inception);
         printf("        RRSIG: KEY TAG = %d\n", key_tag);
         printf("        RRSIG: SIGNER'S NAME = ");
-        unsigned char *p = response + offset ;
-        p = print_domain(p);
 
-        offset = p - response;
+        offset += print_domain(response + offset);
+
         printf("\n");
         printf("        RRSIG: SIGNATURE = ");
         for (int j = 0; j < rdlength - 18; j++) {
@@ -461,7 +475,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  printf("[+] Connected socket %d to DNS server %s\n", dnsSocket, serverIP);
+  printf("[+] Connected socket %d to DNS server %s:%d query %s\n", dnsSocket, serverIP, serverPort, dns_type);
 
   // Construct the DNS query
   unsigned char query[512]; // UDP max 512 bytes
@@ -499,25 +513,20 @@ int main(int argc, char *argv[]) {
   memset(response, 0, sizeof(response));
   do {
 
-  // Send the DNS query
-  // call sendto() instead of send() to specify the destination address
-  //if (sendto( dnsSocket, query, queryLen, 0, NULL, 0) < 0) {
-
-  //if (sendto (dnsSocket, query, queryLen,0 ) < 0) {
-
-  if (send(dnsSocket, query, queryLen, 0) < 0) {
-    perror("[-] Failed to send DNS query");
-    close(dnsSocket);
-    return -1;
-  }
+    // Send the DNS query
+    if (send(dnsSocket, query, queryLen, 0) < 0) {
+      perror("[-] Failed to send DNS query");
+      close(dnsSocket);
+      return -1;
+    }
   
-  // Receive the DNS response
+    // Receive the DNS response
 
-   responseLen = recv(dnsSocket, response, sizeof(response), 0);
-      //printf("DNS Response:\n%s\n", response);
-  retries++;
+    responseLen = recv(dnsSocket, response, sizeof(response), 0);
+    //printf("DNS Response:\n%s\n", response);
+    retries++;
   } while (retries < 1 && responseLen <= 0);
-  printf("Retries: %d\n", retries);
+  printf("Retries: %d\n", retries-1);
 
 
   if (responseLen < 0) {
