@@ -5,63 +5,10 @@
 #include "connect.h"
 #include "hexdump.h"
 #include "dnstypes.h"
+#include "query.h"
 
 
-void constructDNSQuery(unsigned char *query, int *queryLen, char *hostname, char *dns_type) {
-  // Header section
-  // ID
-  query[(*queryLen)++] = 0x12;
-  query[(*queryLen)++] = 0x34;
-  // QR, Opcode, AA, TC, RD
-  query[(*queryLen)++] = 0x01;
-  // RA, Z, RCODE
-  query[(*queryLen)++] = 0x00;
-  // QDCOUNT
-  query[(*queryLen)++] = 0x00;
-  query[(*queryLen)++] = 0x01;
-  // ANCOUNT
-  query[(*queryLen)++] = 0x00;
-  query[(*queryLen)++] = 0x00;
-  // NSCOUNT
-  query[(*queryLen)++] = 0x00;
-  query[(*queryLen)++] = 0x00;
-  // ARCOUNT
-  query[(*queryLen)++] = 0x00;
-  query[(*queryLen)++] = 0x00;
-
-  // Question section
-  // QNAME
-  int i;
-  int j = 0;
-  for (i = 0; i < strlen(hostname); i++) {
-    if (hostname[i] == '.') {
-      query[(*queryLen)++] = i - j;
-      for (; j < i; j++) {
-        query[(*queryLen)++] = hostname[j];
-      }
-      j++;
-    }
-  }
-  query[(*queryLen)++] = i - j;
-  for (; j < i; j++) {
-    query[(*queryLen)++] = hostname[j];
-  }
-
-  // add 0 to terminate the QNAME fix
-  query[(*queryLen)++] = 0x00;
-
-  // QTYPE
-  int type = get_type_int(dns_type);
-  query[(*queryLen)++] = (type >> 8) & 0xff;
-  query[(*queryLen)++] = type & 0xff;
-  //query[(*queryLen)++] = 0x00;
-  //query[(*queryLen)++] = 0x02;
-  // QCLASS
-  query[(*queryLen)++] = 0x00;
-  query[(*queryLen)++] = 0x01;
-}
-
-const unsigned char *print_name(
+unsigned char *print_name(
 		const unsigned char *msg,
         const unsigned char *p, 
         const unsigned char *end
@@ -79,7 +26,7 @@ const unsigned char *print_name(
         p += 2;
         //printf(" (pointer %d) ", k);
         print_name(msg, msg+k, end);
-        return p;
+        return (unsigned char *)p;
 
     } else {
     	// Not a name pointer
@@ -98,12 +45,12 @@ const unsigned char *print_name(
             printf(".");
             return print_name(msg, p, end);
         } else {
-            return p+1;
+            return (unsigned char *)p+1;
         }
     }
 }
 
-const unsigned char *print_names(
+unsigned char *print_names(
 		const unsigned char *msg,
         const unsigned char *p, 
         const unsigned char *end
@@ -115,23 +62,12 @@ const unsigned char *print_names(
 			printf("\n");
 			hexdump(q, end-q);
 		}
-		/*
-		while (q < end) {
-			q = (unsigned char*)print_name(msg, q, end);
-			printf("\n");
-			for (unsigned char *r = q; r<end;r++) {
-			    unsigned char c = *r<' '?'.':*r; // do not print 0x0C
-			    printf("%02X  %03d  '%c'\n", *r, *r, c);
-
-			}
-		}
-		*/
 		return q;
 		
 }
 
 // this uses a length byte in front of the domain name, without pointers
-int print_domain(unsigned char *p) {
+unsigned char * print_domain(unsigned char *p) {
   int len;
   do { 
     len = *p++;
@@ -503,6 +439,7 @@ int main(int argc, char *argv[]) {
   } else {
     dns_type = "TXT";
   }
+  int query_type = get_type_int(dns_type);
 
   if (argc == 4) {
     serverIP = argv[3];
@@ -532,13 +469,13 @@ int main(int argc, char *argv[]) {
   int queryLen = 0;
   if (useTCP) {
     // TCP: 2 bytes length in front of the query
-    constructDNSQuery(query+2, &queryLen, hostname, dns_type);
+    constructDNSQuery(query+2, &queryLen, hostname, query_type);
     query[0] = (queryLen >> 8) & 0xff;
     query[1] = queryLen & 0xff;
     queryLen += 2;
 
   } else {
-    constructDNSQuery(query, &queryLen, hostname, dns_type);
+    constructDNSQuery(query, &queryLen, hostname, query_type);
   }
 
   // Print the DNS query

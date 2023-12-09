@@ -1,5 +1,5 @@
 CC=gcc
-objects = main.o connect.o hexdump.o dnstypes.o
+objects = main.o connect.o hexdump.o dnstypes.o query.o
 
 dns: $(objects) 
 	 $(CC) -o dns $(objects)

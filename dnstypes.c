@@ -107,6 +107,7 @@ char* get_type(int type){
   }
   return "(other)";
 }
+
 int get_type_int(char* name){
   int i;
   for(i = 0; i < sizeof(dnsMap)/sizeof(DNSMap); i++){
