@@ -1,5 +1,5 @@
 CC=gcc
-objects = main.o
+objects = main.o connect.o hexdump.o dnstypes.o
 
 dns: $(objects) 
 	 $(CC) -o dns $(objects)
@@ -8,4 +8,4 @@ dns: $(objects)
 
 .PHONY : clean
 clean :
-	rm dns $(objects)
+	rm dns $(objects) a.out
