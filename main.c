@@ -425,7 +425,7 @@ void print_packet(unsigned char *response, int length) {
       } else {
         printf("    [+] RDATA (raw): ");
 
-        for (int j = 0; j < rdlength/*((response[offset - 2] << 8) | response[offset - 1])*/; j++) {
+        for (int j = 0; j < rdlength; j++) {
           printf("%02x", packet[offset++]);
         }
         printf("\n");
