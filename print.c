@@ -446,6 +446,31 @@ void print_packet(unsigned char *response, int length) {
         printf("%s\n", base64Text);
         offset += len;
 
+      } else if (type == 257) {
+        // CAA Certificate Authority Authorization
+        printf("(CAA Certificate Authority Authorization)\n");
+        //hexdump(packet+offset, rdlength);
+
+        int flags;
+        int tag_length;
+        CONSUME_8BIT(flags);
+        CONSUME_8BIT(tag_length);
+        printf("[+]          FLAGS               : %d\n", flags);
+        printf("[+]          TAG LENGTH          : %d\n", tag_length);
+        printf("[+]          TAG                 : ");
+        for (int j = 0; j < tag_length; j++) {
+          printf("%c", packet[offset++]);
+        }
+        printf("\n");
+        printf("[+]          VALUE               : ");
+        for (int j = 0; j < rdlength - 2 - tag_length; j++) {
+          printf("%c", packet[offset++]);
+        }
+        printf("\n");
+
+
+
+
       } else {
         printf("(raw)\n");
         printf("[+]          RDATA    : ");
