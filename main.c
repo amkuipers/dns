@@ -6,8 +6,14 @@
 #include "hexdump.h"
 #include "dnstypes.h"
 #include "query.h"
+#include "base64.h"
+#include "timestamp.h"
 
-
+// Print from the response the domain name starting at p, using domain name pointers
+// msg is the start of the DNS message
+// p is the start of the domain name
+// end is the end of the DNS message
+// returns the end of the domain name
 unsigned char *print_name(
 		const unsigned char *msg,
         const unsigned char *p, 
@@ -16,40 +22,40 @@ unsigned char *print_name(
     // recursive
 
     if (p + 2 > end) {
-        fprintf(stderr, "[-] A: End of message.\n"); 
-        exit(1);
+      fprintf(stderr, "[-] A: End of message.\n"); 
+      exit(1);
     }
 
     if ((*p & 0xC0) == 0xC0) {
     	// Name Pointer = offset to name (has high 2 bits set)
-        const int k = ((*p & 0x3F) << 8) + p[1];
-        p += 2;
-        //printf(" (pointer %d) ", k);
-        print_name(msg, msg+k, end);
-        return (unsigned char *)p;
+      const int k = ((*p & 0x3F) << 8) + p[1];
+      p += 2;
+      //printf(" (pointer %d) ", k);
+      print_name(msg, msg+k, end);
+      return (unsigned char *)p;
 
     } else {
     	// Not a name pointer
-        const int len = *p++;
-        if (p + len + 1 > end) {
-            fprintf(stderr, "[-] B: End of message.\n"); 
-            exit(1);
-        }
+      const int len = *p++;
+      if (p + len + 1 > end) {
+        fprintf(stderr, "[-] B: End of message.\n"); 
+        exit(1);
+      }
 
-		// domain name parts
-
-        printf("%.*s", len, p);
-        p += len;
-        if (*p) {
-        	// next part
-            printf(".");
-            return print_name(msg, p, end);
-        } else {
-            return (unsigned char *)p+1;
-        }
+      // Domain name parts
+      printf("%.*s", len, p);
+      p += len;
+      if (*p) {
+        // next part
+        printf(".");
+        return print_name(msg, p, end);
+      } else {
+        return (unsigned char *)p+1;
+      }
     }
 }
 
+// Print from the response the domain name(s) starting at p, using domain name pointers, inc hexdump
 unsigned char *print_names(
 		const unsigned char *msg,
         const unsigned char *p, 
@@ -63,11 +69,11 @@ unsigned char *print_names(
 			hexdump(q, end-q);
 		}
 		return q;
-		
 }
 
-// this uses a length byte in front of the domain name, without pointers
-// returns the length of the domain name
+// Print chain of Pascal strings from the response starting at p
+// p points to the length byte of the string that follows
+// returns the length processed
 int print_domain(unsigned char *p) {
   unsigned char *start = p;
   int len;
@@ -75,15 +81,16 @@ int print_domain(unsigned char *p) {
     len = *p++;
     printf("%.*s", len, p);
     p += len;
-    if (*p ) printf(".");
+    if (*p ) printf("."); // another pascal string follows
   } while (*p > 0);
-  return p - start + 1; // include the 0 at the end
+  return p - start + 1; // include the last pascal string with length 0 at the end
 }
 
 
 #define CONSUME_8BIT(x) (x = packet[offset++]);
 #define CONSUME_16BIT(x) (x = (packet[offset] << 8) | packet[offset + 1]); offset += 2;
 #define CONSUME_32BIT(x) (x = (packet[offset] << 24) | (packet[offset + 1] << 16) | (packet[offset + 2] << 8) | packet[offset + 3]); offset += 4;
+
 
 // Print the DNS request or response
 // length is the length of the response
@@ -94,14 +101,14 @@ void print_packet(unsigned char *response, int length) {
 
   // Header section
   // ID  to uniquely define the message relationship between query and response
-  printf("[+] ID: 0x%02x%02x; 16bit client id\n", packet[0], packet[1]);
+  printf("[+] ID     : 0x%02x%02x; 16bit client id\n", packet[0], packet[1]);
 
   // QR, Opcode, AA, TC, RD
   printf("[+] QR, Opcode, AA, TC, RD: 0x%02x; 8bit\n", packet[2]);
   const int qr = (packet[2] >> 7) & 0x01;
-  printf("    [+] QR    : %d=%s; 1bit (0=query, 1=response)\n", qr, qr ? "response" : "query");
+  printf("[+]     QR    : %d=%s; 1bit (0=query, 1=response)\n", qr, qr ? "response" : "query");
   const int opcode = (packet[2] >> 3) & 0x0f;
-  printf("    [+] Opcode: %d; 4bit =", opcode);
+  printf("[+]     Opcode: %d; 4bit =", opcode);
   switch(opcode) {
       case 0: printf("standard\n"); break;
       case 1: printf("reverse\n"); break;
@@ -109,36 +116,37 @@ void print_packet(unsigned char *response, int length) {
       default: printf("?\n"); break;
   }  
   const int aa = (packet[2] >> 2) & 0x01;
-  printf("    [+] AA    : %d; 1bit =%s\n", aa, aa ? "authoritative answer" : "");
+  printf("[+]     AA    : %d; 1bit =%s\n", aa, aa ? "authoritative answer" : "");
   const int tc = (packet[2] >> 1) & 0x01;
-  printf("    [+] TC    : %d; 1bit =%s\n", tc, tc ? "message truncated (should be resend via TCP)" : "not truncated");
+  printf("[+]     TC    : %d; 1bit =%s\n", tc, tc ? "message truncated (should be resend via TCP)" : "not truncated");
   const int rd = packet[2] & 0x01;
-  printf("    [+] RD    : %d; 1bit =%s\n", rd, rd ? "recursion desired" : "");
+  printf("[+]     RD    : %d; 1bit =%s\n", rd, rd ? "recursion desired" : "");
 
-
-  if (qr) {
-      const int rcode = packet[3] & 0x0F;
-      printf("Header RCODE = %d; 4bit ", rcode);
-      switch(rcode) {
-          case 0: printf("success\n"); break;
-          case 1: printf("format error\n"); break;
-          case 2: printf("server failure\n"); break;
-          case 3: printf("name error\n"); break;
-          case 4: printf("not implemented\n"); break;
-          case 5: printf("refused\n"); break;
-          default: printf("?\n"); break;
-      }
-      if (rcode != 0) return;
-  }
 
   // RA, Z, RCODE
   printf("[+] RA, Z, RCODE: 0x%02x; 8bit\n", packet[3]);
   const int ra = (packet[3] >> 7) & 0x01;
-  printf("    [+] RA   : %d (1=server supports recursion)\n", ra);
+  printf("[+]     RA    : %d; 1bit (1=server supports recursion)\n", ra);
   const int z = (packet[3] >> 4) & 0x07;
-  printf("    [+] Z    : %d (future use)\n", z);
+  printf("[+]     Z     : %d; 3bit (future use)\n", z);
   const int rcode = packet[3] & 0x0f;
-  printf("    [+] RCODE: %d\n", rcode);
+  printf("[+]     RCODE : %d; 4bit (response code) ", rcode);
+  if (qr==0) {
+    // Query
+    printf("\n");
+  } else {
+    // Response
+    switch(rcode) {
+      case 0: printf("success\n"); break;
+      case 1: printf("format error\n"); break;
+      case 2: printf("server failure\n"); break;
+      case 3: printf("name error\n"); break;
+      case 4: printf("not implemented\n"); break;
+      case 5: printf("refused\n"); break;
+      default: printf("?\n"); break;
+    }
+    if (rcode != 0) return;
+  }
 
   // RA is set in the response if the server supports recursion
   // Z is reserved for future use
@@ -169,7 +177,7 @@ void print_packet(unsigned char *response, int length) {
 
   // Question section
   // QNAME is the domain name being queried
-  printf("[+] QNAME: ");
+  printf("[+] QNAME  : ");
   offset += print_domain(packet + offset);
 
   printf("\n");
@@ -182,23 +190,24 @@ void print_packet(unsigned char *response, int length) {
   CONSUME_16BIT(qtype);
   CONSUME_16BIT(qclass);
 
-  printf("[+] QTYPE : %d=%s; 16bit record type\n", qtype, get_type(qtype));
-  printf("[+] QCLASS: %d; 16bit (should be 1=Internet)\n", qclass);
+  printf("[+] QTYPE  : %d; 16bit record type= %s\n", qtype, get_type(qtype));
+  printf("[+] QCLASS : %d; 16bit (should be 1=Internet)\n", qclass);
 
 
   if (qr==0 && (offset < length)) {
-    printf("MORE DATA IN QUERY!!! %d < %d\n", offset, length);
+    printf("[-] MORE DATA IN QUERY!!! %d < %d\n", offset, length);
   }
 
   // Answer section
+  int answers = ancount + nscount + arcount;
   if (ancount || nscount || arcount) {
 
     printf("[+] Answer section:\n");
-    for (int i = 0; i < ancount + nscount + arcount; i++) {
+    for (int i = 0; i < answers; i++) {
 
-      printf("[+] Answer %2d\n", i + 1); // answer 1, 2, ..
+      printf("[+] Answer %d of %d\n", i + 1, answers); // answer 1, 2, ..
 
-      printf("    [+] NAME     : ");
+      printf("[+]     NAME     : ");
       unsigned char *p = packet + offset;
       p = print_name(packet, p, packet + length);
       printf("\n");
@@ -218,44 +227,41 @@ void print_packet(unsigned char *response, int length) {
       CONSUME_32BIT(ttl);
       CONSUME_16BIT(rdlength); 
 
-      printf("    [+] TYPE     : %d; 16bit record type: %s\n", type, get_type(type));
-      printf("    [+] CLASS    : %d; 16bit (should be 1=Internet)\n", class);
-      printf("    [+] TTL      : %u sec; 32bit; %u minutes the answer is allowed to cache\n", ttl, ttl/60);
-      printf("    [+] RDLENGTH : %d; 16bit length of rdata\n", rdlength);
+      printf("[+]     TYPE     : %d; 16bit record type: %s\n", type, get_type(type));
+      printf("[+]     CLASS    : %d; 16bit (should be 1=Internet)\n", class);
+      printf("[+]     TTL      : %u sec; 32bit; %u minutes the answer is allowed to cache\n", ttl, ttl/60);
+      printf("[+]     RDLENGTH : %d; 16bit length of rdata\n", rdlength);
 
       // RDATA is the data for the resource record
-      printf("    [+] RDATA ");
+      printf("[+]     RDATA    : ");
 
       if (rdlength == 4 && type == 1) {
         /* A Record */
-        printf("Address = ");
         unsigned char *p = packet + offset;
-        printf("%d.%d.%d.%d\n", p[0], p[1], p[2], p[3]);
+        printf("%d.%d.%d.%d (A record, IPv4 address)\n", p[0], p[1], p[2], p[3]);
         offset += rdlength;
 
       } else if (type == 2) {
         /* NS */
-        printf("NS : ");
         unsigned char *p = packet + offset;
         p = print_name(packet, p, packet+length);
         offset = p - packet; 
-        printf("\n"); 
+        printf(" (NS record)\n"); 
 
       } else if (type == 5) {
         // CNAME
-        printf("CNAME : ");
         unsigned char *p = packet + offset;
         p = print_name(packet, p, packet+length);
         offset = p - packet;
-        printf("\n");
+        printf(" (CNAME record)\n");
 
       } else if (type == 6) {
         /* SOA 
         https://en.wikipedia.org/wiki/SOA_record
         https://datatracker.ietf.org/doc/html/rfc1912
         */
-        printf("SOA: type %d rdlen %d \n", type, rdlength);
-        hexdump(packet+offset, rdlength);
+        printf("(SOA Start of Authority)\n");
+        //hexdump(packet+offset, rdlength);
 
         // MNAME Primary master name
         // RNAME email aa\.bb.domain.com ==> aa.bb@domain.com
@@ -264,18 +270,16 @@ void print_packet(unsigned char *response, int length) {
         // RETRY seconds (7200 = 2hours recommended)
         // EXPIRE seconds secondary dns 3600000 seconds (1000 hours).
         // MINIMUM seconds TTL 172800 seconds (2 days)
-        printf("        SOA: MNAME Primary master name = ");
-
+        printf("[+]          MNAME  : ");
         unsigned char *p = packet + offset;
-
         p = print_name(packet, p, packet+length); 
         offset = p - packet; 
-        printf("\n");
+        printf(" (Primary master name; the DNS server to use)\n");
 
-        printf("        SOA: RNAME email = ");
+        printf("[+]          RNAME  : ");
         p = print_name(packet, p, packet+length); 
         offset = p - packet; 
-        printf("\n");
+        printf(" (email)\n");
 
         // SERIAL, REFRESH, RETRY, EXPIRE, MINIMUM
         int serial;
@@ -290,42 +294,37 @@ void print_packet(unsigned char *response, int length) {
         CONSUME_32BIT(expire);
         CONSUME_32BIT(minimum);
 
-        printf("        SOA: SERIAL  = %d\n", serial);
-        printf("        SOA: REFRESH = %d sec\n", refresh);
-        printf("        SOA: RETRY   = %d sec (7200 recommended)\n", retry);
-        printf("        SOA: EXPIRE  = %d sec\n", expire);
-        printf("        SOA: MINIMUM = %d sec\n", minimum);
-
-
-
-        //offset = p - packet;
-
-        //if (offset <= rdlength) {
-        //  printf("MORE DATA!!!");
-       // }
+        printf("[+]          SERIAL : %d\n", serial);
+        printf("[+]          REFRESH: %d sec = %d min\n", refresh, refresh/60);
+        printf("[+]          RETRY  : %d sec = %d min (7200 sec recommended)\n", retry, retry/60);
+        printf("[+]          EXPIRE : %d sec = %d min\n", expire, expire/60);
+        printf("[+]          MINIMUM: %d sec = %d min\n", minimum, minimum/60);
 
 
       } else if (type == 15 && rdlength > 3) {
         /* MX Record */
+        printf("(MX record)\n");
+
         unsigned char *p = packet + offset;
         const int preference = (p[0] << 8) + p[1];
-        printf("MX: pref: %d ", preference);
-        printf("= ");
-        p=print_name(packet, p+2, packet+length); printf("\n");
+        printf("[+]          PREF   : %d\n", preference);
+        printf("[+]          NAME   : ");
+        p=print_name(packet, p+2, packet+length); 
+        printf("\n");
         offset = p - packet; 
 
       } else if (type == 13) {
         /* HINFO Record */
-        printf("HINFO: ");
+        printf("(HINFO record)\n");
         //hexdump(packet+offset, rdlength);
 
         unsigned char *p = packet + offset;
         int len = p[0];
-        printf("CPU: ");
+        printf("[+]          CPU   : ");
         for (int j = 0; j < len; j++) {
           printf("%c", p[j+1]);
         }
-        printf(" OS: ");
+        printf("\n[+]          OS    : ");
         len = p[len+1];
         for (int j = 0; j < len; j++) {
           printf("%c", p[j+1+len]);
@@ -335,15 +334,14 @@ void print_packet(unsigned char *response, int length) {
 
       } else if (type == 16) {
         /* TXT Record */
-        //printf("TXT: ");
+        printf("(TXT record)\n");
         //hexdump(response+offset, rdlength);
         // TCP has 8bit length in front of the TXT data
         int len = 0;
         do {
           CONSUME_8BIT(len);
-          printf("\n        [+] TXT: len %d\n", len);
-          printf("        [+] TXT: \"");
-
+          //printf("[+]          TXT: len %d\n", len);
+          printf("[+]          TXT: \"");
           for (int j = 0; j < len; j++) {
             printf("%c", packet[offset++]);
           }
@@ -354,7 +352,7 @@ void print_packet(unsigned char *response, int length) {
 
       } else if (rdlength == 16 && type == 28) {
         /* AAAA Record */
-        printf("AAAA: Address ");
+        //printf("AAAA: Address ");
         unsigned char *p = packet + offset;
 
         int j;
@@ -363,12 +361,13 @@ void print_packet(unsigned char *response, int length) {
             if (j + 2 < rdlength) printf(":");
         }
         offset += rdlength;
+        printf(" (AAAA record, IPv6 address)\n");
 
-        printf("\n");
       } else if (type == 46) {
         // RRSIG
-        printf("RRSIG: type %d rdlen %d \n", type, rdlength);
-        hexdump(packet+offset, rdlength);
+        printf("(RRSIG Resource Record Signature)\n");
+
+        //hexdump(packet+offset, rdlength);
         // s is start of answer
         int s = offset;
         //printf("DEBUG: offset %d rdlength %d\n", offset, rdlength);
@@ -398,32 +397,61 @@ void print_packet(unsigned char *response, int length) {
         CONSUME_32BIT(signature_inception);
         CONSUME_16BIT(key_tag);
 
-        printf("        RRSIG: TYPE Covered = %d=%s\n", type_covered, get_type(type_covered));
-        printf("        RRSIG: ALGORITHM = %d (13=ECDSA Curve P-256 with SHA-256)\n", algorithm);
-        printf("        RRSIG: LABELS = %d (number of labels in the original RRSIG RR owner name)\n", labels);
-        printf("        RRSIG: ORIGINAL TTL = %d\n", original_ttl);
-        printf("        RRSIG: SIGNATURE EXPIRATION = %d (timestamp)\n", signature_expiration);
-        printf("        RRSIG: SIGNATURE INCEPTION = %d (timestamp)\n", signature_inception);
-        printf("        RRSIG: KEY TAG = %d\n", key_tag);
+        printf("[+]          TYPE Covered        : %d=%s\n", type_covered, get_type(type_covered));
+        printf("[+]          ALGORITHM           : %d (13=ECDSA Curve P-256 with SHA-256)\n", algorithm);
+        printf("[+]          LABELS              : %d (number of labels in the original RRSIG RR owner name)\n", labels);
+        printf("[+]          ORIGINAL TTL        : %d\n", original_ttl);
+        printf("[+]          SIGNATURE EXPIRATION: %d (timestamp)= ", signature_expiration);
+        print_timestamp(signature_expiration);
+        //printf("\n");
+        printf("[+]          SIGNATURE INCEPTION : %d (timestamp)= ", signature_inception);
+        print_timestamp(signature_inception);
+        //printf("\n");
+        printf("[+]          KEY TAG             : %d\n", key_tag);
         //printf("DEBUG: offset %d rdlength %d\n", offset, rdlength);
 
-        printf("        RRSIG: SIGNER'S NAME = ");
+        printf("[+]          SIGNER'S NAME       : ");
         offset += print_domain(packet + offset);
         printf("\n");
-        //printf("DEBUG: offset %d rdlength %d\n", offset, rdlength);
-        printf("        RRSIG: SIGNATURE = ");
+        printf("[+]          SIGNATURE           : ");
         // SIGNATURE is the cryptographic signature that covers the RRSIG RDATA (excluding the Signature field) and the RRset specified by the RRSIG owner name, RRSIG class, and RRSIG Type Covered field
-        for (int j = offset-s; j < rdlength; j++) {
-          printf("%02x", packet[offset++]);
-          //printf("DEBUG: offset %d %02x rdlength %d\n", offset, packet[offset++], rdlength);
 
-        }
-        printf("\n");
+        int len = rdlength - (offset-s);
+        unsigned char *p = packet + offset;
+        char base64Text[4 * ((len + 2) / 3) + 1];  // Enough space for encoding
+        base64_encode(p, len, base64Text);
 
-    
+        printf("%s\n", base64Text);
+        offset += len;
+
+      } else if (type == 48) {
+        // DNSKEY
+        printf("(DNSKEY record)\n");
+        int s = offset;
+
+        int flags;
+        int protocol;
+        int algorithm;
+        CONSUME_16BIT(flags);
+        CONSUME_8BIT(protocol);
+        CONSUME_8BIT(algorithm);
+        printf("[+]          FLAGS               : %d\n", flags);
+        printf("[+]          PROTOCOL            : %d\n", protocol);
+        printf("[+]          ALGORITHM           : %d\n", algorithm);
+        printf("[+]          PUBLIC KEY          : ");
+
+        // public key as base64
+        int len = rdlength - (offset-s);
+        unsigned char *p = packet + offset;
+        char base64Text[4 * ((len + 2) / 3) + 1];  // Enough space for encoding
+        base64_encode(p, len, base64Text);
+
+        printf("%s\n", base64Text);
+        offset += len;
 
       } else {
-        printf("    [+] RDATA (raw): ");
+        printf("(raw)\n");
+        printf("[+]          RDATA    : ");
 
         for (int j = 0; j < rdlength; j++) {
           printf("%02x", packet[offset++]);
@@ -444,7 +472,7 @@ void print_packet(unsigned char *response, int length) {
 int main(int argc, char *argv[]) {
   char *hostname;
   char *dns_type;
-  char *serverIP;
+  char *dns_server;
 
   if (argc < 2) {
     printf("Usage: %s hostname [dnstype] [dnsserverIP]\n", argv[0]);
@@ -467,11 +495,16 @@ int main(int argc, char *argv[]) {
     dns_type = "TXT";
   }
   int query_type = get_type_int(dns_type);
+  if (query_type < 0) {
+    fprintf(stderr, "[-] Invalid DNS type %s\n", dns_type);
+    exit(1);
+  }
 
   if (argc == 4) {
-    serverIP = argv[3];
+    dns_server = argv[3];
   } else {
-    serverIP = "8.8.8.8";
+    // Google DNS
+    dns_server = "8.8.8.8";
   }
 
   int serverPort = 53;
@@ -479,16 +512,16 @@ int main(int argc, char *argv[]) {
   int useTCP = 1;
   int dnsSocket;
   if (useTCP) {
-    dnsSocket = connectTCP(serverIP, serverPort);
+    dnsSocket = connectTCP(dns_server, serverPort);
   } else {
-    dnsSocket = connectUDP(serverIP, serverPort);
+    dnsSocket = connectUDP(dns_server, serverPort);
   }
   if (dnsSocket < 0) {
-    printf("[-] Failed to connect to DNS server %s\n", serverIP);
+    printf("[-] Failed to connect to DNS server %s\n", dns_server);
     return -1;
   }
 
-  printf("[+] Connected socket %d to DNS server %s:%d query %s\n", dnsSocket, serverIP, serverPort, dns_type);
+  printf("[+] Connected socket %d to DNS server %s:%d query %s\n", dnsSocket, dns_server, serverPort, dns_type);
 
   // Construct the DNS query
   unsigned char query[512]; // UDP max 512 bytes

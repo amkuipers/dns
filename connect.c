@@ -7,8 +7,8 @@ int dns_connect(const char* serverIP, int serverPort, int socktype) {
     if (sockfd < 0) {
         perror("[-] Failed to create socket");
         exit(EXIT_FAILURE);
-    } else {
-        printf("[+] Created socket %d\n", sockfd);
+    //} else {
+    //    printf("[+] Created socket %d\n", sockfd);
     }
 
     // Set up the server address
@@ -27,17 +27,19 @@ int dns_connect(const char* serverIP, int serverPort, int socktype) {
         perror("[-] Failed to connect to DNS server");
         close(sockfd);
         exit(EXIT_FAILURE);
-    } else {
-        printf("[+] Connected\n");
+    //} else {
+    //    printf("[+] Connected\n");
     }
 
     return sockfd;
 }
 
 int connectUDP(const char* serverIP, int serverPort) {
+    printf("[+] Creating IPv4 socket to udp %d on %s\n", serverPort, serverIP);
     return dns_connect(serverIP, serverPort, SOCK_DGRAM);
 }
 
 int connectTCP(const char* serverIP, int serverPort) {
+    printf("[+] Creating IPv4 socket to tcp %d on %s\n", serverPort, serverIP);
     return dns_connect(serverIP, serverPort, SOCK_STREAM);
 }
