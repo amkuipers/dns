@@ -18,7 +18,7 @@ Code can contain parts of
 - Run `make run` and it builds and then makes an actual call
 
 It works when building on Apple M3 Pro.
-The github repo contains a build pipeline (see Actions) that builds it too,
+The github repo contains a build pipeline (see Actions https://github.com/amkuipers/dns/actions ) that builds it too,
 but the result is not monitored all the time.
 
 ## bugs and other remarks
@@ -37,3 +37,8 @@ but the result is not monitored all the time.
 - brute force using a predefined list of subdomain names for domain controller
 - improve command line argument handling
 - allow a name for the dns server instead of ip
+
+## done
+
+- extracted command line
+- multiple requests: `./dns github.com a,aaaa,cname,txt tcp |more` 
