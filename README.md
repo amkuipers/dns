@@ -30,3 +30,9 @@ but the result is not monitored all the time.
 
 - when requesting udp, the udp response with TC 1 means it is truncated, and you should do a tcp request instead to get the information. Reason is that the answer does not fit in the udp response, and it does in a tcp response.
 - sometimes ANY returns records, but most of the time a HINFO referencing an RFC is returned, basically stating that the server deprecated the ANY implementation. I did experience that the same dns once in a while does return a long list of answers on ANY.
+
+## to do
+
+- brute force using a list of subdomain names
+- brute force using a predefined list of subdomain names for domain controller
+- improve command line argument handling
