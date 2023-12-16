@@ -36,3 +36,4 @@ but the result is not monitored all the time.
 - brute force using a list of subdomain names
 - brute force using a predefined list of subdomain names for domain controller
 - improve command line argument handling
+- allow a name for the dns server instead of ip
