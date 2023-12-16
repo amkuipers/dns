@@ -6,7 +6,7 @@ dns: $(objects)
 	 chmod +x dns
 
 run: dns
-	./dns github.com
+	./dns github.com any tcp 8.8.8.8
 
 .PHONY : clean
 clean :

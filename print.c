@@ -15,6 +15,7 @@ unsigned char *print_name(
 
     if (p + 2 > end) {
       fprintf(stderr, "[-] A: End of message.\n"); 
+      hexdump(p, end-p);
       exit(1);
     }
 
@@ -196,8 +197,8 @@ void print_packet(unsigned char *response, int length) {
     for (int i = 0; i < answers; i++) {
 
       printf("[+] Answer %d of %d\n", i + 1, answers); // answer 1, 2, ..
-
-
+      
+      printf("[+]     OFFSET   : 0x%08x\n", offset);
       printf("[+]     NAME     : ");
       unsigned char *p = packet + offset;
       p = print_name(packet, p, packet + length);
@@ -449,6 +450,7 @@ void print_packet(unsigned char *response, int length) {
       } else if (type == 257) {
         // CAA Certificate Authority Authorization
         printf("(CAA Certificate Authority Authorization)\n");
+        unsigned char *s = packet + offset;
         //hexdump(packet+offset, rdlength);
 
         int flags;
@@ -463,12 +465,12 @@ void print_packet(unsigned char *response, int length) {
         }
         printf("\n");
         printf("[+]          VALUE               : ");
-        for (int j = 0; j < rdlength - 2 - tag_length; j++) {
+        unsigned char *p = packet + offset;
+        int value_length = rdlength - (p-s);
+        for (int j = 0; j < value_length; j++) {
           printf("%c", packet[offset++]);
         }
         printf("\n");
-
-
 
 
       } else {

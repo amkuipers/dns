@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
   int retries = 0;
   int responseLen = 0;
 
-  unsigned char response[2048];
+  unsigned char response[64*1024]; // tcp max 64k
   memset(response, 0, sizeof(response));
   do {
 
