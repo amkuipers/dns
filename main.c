@@ -12,9 +12,13 @@ int main(int argc, char *argv[]) {
   char *hostname;
   char *dns_type;
   char *dns_server;
+  char *tcp_udp;
 
   if (argc < 2) {
-    printf("Usage: %s hostname [dnstype] [dnsserverIP]\n", argv[0]);
+    printf("Usage: %s hostname [dnstype] [ut] [dnsserverIP]\n", argv[0]);
+    printf("  dnstype    : record type, default is txt\n");
+    printf("  ut         : tcp, default is udp\n");
+    printf("  dnsserverIP: IP address, default is 8.8.8.8\n");
     return 1;
   }
 
@@ -35,20 +39,37 @@ int main(int argc, char *argv[]) {
   }
   int query_type = get_type_int(dns_type);
   if (query_type < 0) {
-    fprintf(stderr, "[-] Invalid DNS type %s\n", dns_type);
+    fprintf(stderr, "[-] Invalid DNS record type %s\n", dns_type);
     exit(1);
   }
 
-  if (argc == 4) {
-    dns_server = argv[3];
+  int useTCP = 0;
+  if (argc >= 4) {
+    tcp_udp = argv[3];
+    // case insensitive compare (might not be portable)
+    if (strcasecmp(tcp_udp, "tcp") == 0) {
+      useTCP = 1;
+    } else if (strcasecmp(tcp_udp, "udp") == 0) {
+      useTCP = 0;
+    } else {
+      fprintf(stderr, "[-] Invalid socket type %s\n", tcp_udp);
+      exit(1);
+    }
   } else {
-    // Google DNS
+    // default is UDP
+    useTCP = 0;
+  }
+
+  if (argc == 5) {
+    dns_server = argv[4];
+  } else {
+    // Google DNS is the default
+    // Must be an IP address
     dns_server = "8.8.8.8";
   }
 
   int serverPort = 53;
 
-  int useTCP = 1;
   int dnsSocket;
   if (useTCP) {
     dnsSocket = connectTCP(dns_server, serverPort);

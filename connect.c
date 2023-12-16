@@ -3,6 +3,9 @@
 // internal function
 int dns_connect(const char* serverIP, int serverPort, int socktype) {
     // Create a socket
+    // AF_INET: IPv4
+    // SOCK_DGRAM: UDP, SOCK_STREAM: TCP
+    // 0: default protocol
     int sockfd = socket(AF_INET, socktype, 0);
     if (sockfd < 0) {
         perror("[-] Failed to create socket");
