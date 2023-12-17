@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include "dnstypes.h"
 
 
@@ -81,8 +85,33 @@ struct dns_params parse_args(int argc, char *argv[]) {
     params.useTCP = 0;
   }
 
+
   if (argc == 5) {
     params.dns_server = argv[4];
+
+    // lookup ip address of dns_server name
+    struct hostent *host;
+    struct in_addr **addr_list;
+    int i;
+    host = gethostbyname(params.dns_server);
+    if (host == NULL) {
+      fprintf(stderr, "[-] Failed to lookup DNS server %s\n", params.dns_server);
+      exit(1);
+    }
+    //params.dns_server = inet_ntoa(*(struct in_addr *)host->h_addr_list[0]);
+
+    // print information about this host:
+    printf("[+] DNS server official name is: %s\n", host->h_name);
+    printf("[+] DNS server IP addresses: ");
+    addr_list = (struct in_addr **)host->h_addr_list;
+    for(i = 0; addr_list[i] != NULL; i++) {
+        printf("%s ", inet_ntoa(*addr_list[i]));
+    }
+    printf(" (selected the first one)\n");
+    params.dns_server = inet_ntoa(*(struct in_addr *)host->h_addr_list[0]);
+
+
+
   } else {
     // Google DNS is the default
     // Must be an IP address
