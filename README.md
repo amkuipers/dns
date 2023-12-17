@@ -41,5 +41,7 @@ but the result is not monitored all the time.
 
 ## done
 
-- extracted command line
+- extracted command line params
 - multiple requests: `./dns github.com a,aaaa,cname,txt tcp |more` 
+- dont stop when RCODE indicates an error, but show the remaining data
+- improved RD RA text

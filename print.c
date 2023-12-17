@@ -107,17 +107,17 @@ void print_packet(unsigned char *response, int length) {
       default: printf("?\n"); break;
   }  
   const int aa = (packet[2] >> 2) & 0x01;
-  printf("[+]     AA    : %d; 1bit =%s\n", aa, aa ? "authoritative answer" : "");
+  printf("[+]     AA    : %d; 1bit =%s\n", aa, aa ? "1=authoritative answer" : "0=non-authoritative answer");
   const int tc = (packet[2] >> 1) & 0x01;
   printf("[+]     TC    : %d; 1bit =%s\n", tc, tc ? "message truncated (should be resend via TCP)" : "not truncated");
   const int rd = packet[2] & 0x01;
-  printf("[+]     RD    : %d; 1bit =%s\n", rd, rd ? "recursion desired" : "");
+  printf("[+]     RD    : %d; 1bit =%s\n", rd, rd ? "recursion desired" : "no recursion desired");
 
 
   // RA, Z, RCODE
   printf("[+] RA, Z, RCODE: 0x%02x; 8bit\n", packet[3]);
   const int ra = (packet[3] >> 7) & 0x01;
-  printf("[+]     RA    : %d; 1bit (1=server supports recursion)\n", ra);
+  printf("[+]     RA    : %d; 1bit =%s\n", ra, ra ? "recursion available" : "no recursion available");
   const int z = (packet[3] >> 4) & 0x07;
   printf("[+]     Z     : %d; 3bit (future use)\n", z);
   const int rcode = packet[3] & 0x0f;
@@ -131,12 +131,11 @@ void print_packet(unsigned char *response, int length) {
       case 0: printf("success\n"); break;
       case 1: printf("format error\n"); break;
       case 2: printf("server failure\n"); break;
-      case 3: printf("name error\n"); break;
+      case 3: printf("name error (domain name does not exist)\n"); break;
       case 4: printf("not implemented\n"); break;
       case 5: printf("refused\n"); break;
       default: printf("?\n"); break;
     }
-    if (rcode != 0) return;
   }
 
   // RA is set in the response if the server supports recursion
