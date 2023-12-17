@@ -432,6 +432,56 @@ void print_packet(unsigned char *response, int length) {
         printf("%s\n", base64Text);
         offset += len;
 
+      } else if (type == 47) {
+        // NSEC
+        printf("(NSEC Next Secure)\n");
+        // Contains a link to the next record name in the zone and lists the record types that exist 
+        // for the record's name. DNS resolvers use NSEC records to verify the non-existence of a 
+        // record name and type as part of DNSSEC validation.
+
+        unsigned char *s = packet + offset;
+        //hexdump(packet+offset, rdlength);
+
+        // arpa.                   86400   IN      NSEC    as112.arpa. NS SOA RRSIG NSEC DNSKEY
+        // parse the remaining: 00 07 22 00 00 00 00 03 80        
+        // first 2 bytes: 00 07 = window 0 and len 7 bytes
+        // next 7 bytes: 22 00 00 00 00 03 80
+        // NS=2 SOA=6 RRSIG=46 NSEC=47 DNSKEY=48
+        //         8        16      24       32       40        48 
+        // 00100010 00000000 00000000 00000000 00000000 00000011 10000000
+        // 01234567 89012345 67890123 45678901 23456789 01234567 89012345
+        // 00000000 00111111 11112222 22222233 33333333 44444444 44555555
+
+        printf("[+]          NAME          : ");
+        offset += print_domain(packet + offset);
+        printf("\n");
+
+        // get the window number
+        int window;
+        CONSUME_8BIT(window);
+        printf("[+]          WINDOW NUMBER : %d\n", window);
+
+        // get the bitmap length
+        int len;
+        CONSUME_8BIT(len);
+        printf("[+]          BIT MAP LENGTH: %d (to be decoded)\n", len);
+        printf("[+]          DECODED       : ");
+
+        int rrtype = 0;
+        for (int j = 0; j < len; j++) {
+          for (int i = 7; i >= 0; i--) {
+            // check if the bit is set
+            int bit = (packet[offset+j] >> i) & 1;
+            if (bit) {
+              printf("%s ", get_type(rrtype));
+            }
+            rrtype++;
+          }
+        }
+        printf("\n");
+
+        offset += len;
+
       } else if (type == 48) {
         // DNSKEY
         printf("(DNSKEY record)\n");

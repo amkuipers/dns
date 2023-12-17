@@ -5,6 +5,7 @@
 // https://en.wikipedia.org/wiki/List_of_DNS_record_types#/media/File:All_active_dns_record_types.png
 
 DNSMap dnsMap[] = {
+  {0, "-"},
   {1, "A"},
   {2, "NS"},
   {3, "MD"},

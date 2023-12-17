@@ -33,6 +33,12 @@ but the result is not monitored all the time.
 - if SOA record is returned in an non-authoritive answer, then use that DNS server to get the authoritive answer
 - to lookup the domain name of an IP; the tool reverses the IP and adds .in-addr.arpa. So that 1.2.3.4 becomes 4.3.2.1.in-addr.arpa and request for PTR. Usage is `./dns 1.1.1.1 ptr` and it responds with `one.one.one.one`.
 
+When doing investigations, it can involve multiple executions. For example if I want to explore the first top-level domain created on the internet `./dns arpa` makes a udp request and returns a soa record referring `a.root-servers.net` as dns server to use. A next execution is `./dns arpa any tcp a.root-servers.net` to get 44 authorative answers.
+
+The `./dns arpa nsec udp a.root-servers.net ` is having 25 answers and record NSEC
+contains a bitmap that encodes DNS record types. Output decodes this.
+
+
 ## to do
 
 - brute force using a list of subdomain names
