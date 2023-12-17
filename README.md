@@ -31,6 +31,7 @@ but the result is not monitored all the time.
 - when requesting udp, the udp response with TC 1 means it is truncated, and you should do a tcp request instead to get the information. Reason is that the answer does not fit in the udp response, and it does in a tcp response.
 - sometimes ANY returns records, but most of the time a HINFO referencing an RFC is returned, basically stating that the server deprecated the ANY implementation. I did experience that the same dns once in a while does return a long list of answers on ANY.
 - if SOA record is returned in an non-authoritive answer, then use that DNS server to get the authoritive answer
+- to lookup the domain name of an IP; the tool reverses the IP and adds .in-addr.arpa. So that 1.2.3.4 becomes 4.3.2.1.in-addr.arpa and request for PTR. Usage is `./dns 1.1.1.1 ptr` and it responds with `one.one.one.one`.
 
 ## to do
 
@@ -46,3 +47,4 @@ but the result is not monitored all the time.
 - dont stop when RCODE indicates an error, but show the remaining data
 - improved RD RA text
 - allow a name for the dns server instead of ip
+- ptr lookup of ip

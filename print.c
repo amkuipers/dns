@@ -307,6 +307,17 @@ void print_packet(unsigned char *response, int length) {
         printf("\n");
         offset = p - packet; 
 
+      } else if (type == 12) {
+        /* PTR Record */
+        printf("(PTR record)\n");
+        // hexdump(packet+offset, rdlength);
+
+        printf("[+]          PTR    : ");
+        unsigned char *p = packet + offset;
+        p = print_name(packet, p, packet+length); 
+        offset = p - packet; 
+        printf("\n");
+
       } else if (type == 13) {
         /* HINFO Record */
         printf("(HINFO record)\n");
@@ -475,9 +486,18 @@ void print_packet(unsigned char *response, int length) {
       } else {
         printf("(raw)\n");
         printf("[+]          RDATA    : ");
+        
+        // last address of the packet
+        unsigned char *end = packet + length;
+        // current address in the packet
+        unsigned char *p = packet + offset;
 
         for (int j = 0; j < rdlength; j++) {
           printf("%02x", packet[offset++]);
+          if (p + offset == end) {
+            printf(" (end of packet; something is wrong!)\n");
+            break;
+          }
         }
         printf("\n");
       }

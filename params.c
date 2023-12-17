@@ -11,6 +11,34 @@
 #include "dnstypes.h"
 
 
+// Reverse an IP address for the PTR record
+char* reverseIP(const char *ip) {
+    // Split the IP address into segments
+    char *segments[4];
+    char *token = strtok((char*)ip, ".");
+    int i = 0;
+
+    while (token != NULL) {
+        segments[i++] = token;
+        token = strtok(NULL, ".");
+    }
+
+    // Reverse the order of the segments
+    for (int j = 0; j < i / 2; j++) {
+        char *temp = segments[j];
+        segments[j] = segments[i - j - 1];
+        segments[i - j - 1] = temp;
+    }
+
+    // Create a dynamically allocated string for the reversed IP address
+    char *reversedIP = (char*)malloc(strlen(ip) + 1);
+    sprintf(reversedIP, "%s.%s.%s.%s", segments[0], segments[1], segments[2], segments[3]);
+
+    return reversedIP;
+}
+
+
+
 // parse command line arguments
 struct dns_params parse_args(int argc, char *argv[]) {
   struct dns_params params;
@@ -54,6 +82,21 @@ struct dns_params parse_args(int argc, char *argv[]) {
       exit(1);
     }
     params.dns_types[params.dns_types_len++] = type;
+    
+    // check for the PTR record type
+    // assume that the hostname is an IP address
+    if (type == 12) {
+      // construct the arpa name
+      params.arpa_name = malloc(strlen(params.hostname) + 13 + 1);
+      strcpy(params.arpa_name, "");
+      // reverse the ip address
+      char *reversedIP = reverseIP(params.hostname);
+      strcat(params.arpa_name, reversedIP);
+      strcat(params.arpa_name, ".in-addr.arpa");
+      free(reversedIP);
+      printf("[+] PTR record requested, arpa name: %s\n", params.arpa_name);
+    }
+
     token = strtok(NULL, ",");
   }
   // print dns_types

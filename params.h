@@ -14,6 +14,7 @@ struct dns_params {
   int dns_types_len;
   int useTCP;
   int serverPort;
+  char *arpa_name;
 };
 
 struct dns_params parse_args(int argc, char *argv[]);

@@ -48,17 +48,22 @@ int main(int argc, char *argv[]) {
     unsigned char query[512]; // UDP max 512 bytes
     memset(query, 0, sizeof(query));
     int queryLen = 0;
+    unsigned char *name = params.hostname;
+    if (query_type == 12) {
+      // PTR record type
+      name = params.arpa_name;
+    }
     if (params.useTCP) {
 
       // TCP: 2 bytes length in front of the query
-      constructDNSQuery(query+2, &queryLen, params.hostname, query_type);
+      constructDNSQuery(query+2, &queryLen, name, query_type);
       query[0] = (queryLen >> 8) & 0xff;
       query[1] = queryLen & 0xff;
       queryLen += 2;
 
     } else {
       // UDP: no length in front of the query
-      constructDNSQuery(query, &queryLen, params.hostname, query_type);
+      constructDNSQuery(query, &queryLen, name, query_type);
     }
 
     // Print the DNS query
