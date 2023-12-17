@@ -1,8 +1,9 @@
 CC=gcc
+OPTIONS=-Wall -Wextra -Wformat 
 objects = main.o connect.o hexdump.o dnstypes.o query.o base64.o timestamp.o print.o params.o
 
 dns: $(objects) 
-	 $(CC) -o dns $(objects)
+	 $(CC) $(OPTIONS) -o dns $(objects)
 	 chmod +x dns
 
 run: dns
