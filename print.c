@@ -396,11 +396,13 @@ void print_packet(unsigned char *response, int length) {
         printf("[+]          PORT                : %d\n", port);
         printf("[+]          TARGET LENGTH       : %d\n", target_length);
         printf("[+]          TARGET              : ");
-        for (int j = 0; j < target_length; j++) {
-          printf("%c", packet[offset++]);
-        }
+        print_domain(packet + offset);
+
+        offset += target_length;
+
+    
         printf("\n");
-        
+
 
       } else if (type == 46) {
         // RRSIG
