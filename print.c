@@ -397,10 +397,7 @@ void print_packet(unsigned char *response, int length) {
         //printf("[+]          TARGET LENGTH       : %d\n", target_length);
         printf("[+]          TARGET              : ");
         print_domain(packet + offset);
-
-        offset += target_length;
-
-    
+        offset = s - packet + rdlength;
         printf("\n");
 
 
