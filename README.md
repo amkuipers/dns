@@ -46,6 +46,14 @@ contains a bitmap that encodes DNS record types. Output decodes this.
 - improve command line argument handling
 - better grepable output
 
+## to do (win dc)
+
+- dc srv records
+
+https://social.technet.microsoft.com/wiki/contents/articles/7608.srv-records-registered-by-net-logon.aspx
+
+https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/verify-srv-dns-records-have-been-created
+
 ## done
 
 - extracted command line params

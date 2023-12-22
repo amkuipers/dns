@@ -371,6 +371,37 @@ void print_packet(unsigned char *response, int length) {
         offset += rdlength;
         printf(" (AAAA record, IPv6 address)\n");
 
+      } else if (type == 33) {
+        // SRV
+        printf("(SRV Service)\n");
+        // https://en.wikipedia.org/wiki/SRV_record
+        // https://datatracker.ietf.org/doc/html/rfc2782
+        // https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-11
+        // https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml
+        // https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt
+
+        unsigned char *s = packet + offset;
+        //hexdump(packet+offset, rdlength);
+
+        int priority;
+        int weight;
+        int port;
+        int target_length;
+        CONSUME_16BIT(priority);
+        CONSUME_16BIT(weight);
+        CONSUME_16BIT(port);
+        CONSUME_8BIT(target_length);
+        printf("[+]          PRIORITY            : %d\n", priority);
+        printf("[+]          WEIGHT              : %d\n", weight);
+        printf("[+]          PORT                : %d\n", port);
+        printf("[+]          TARGET LENGTH       : %d\n", target_length);
+        printf("[+]          TARGET              : ");
+        for (int j = 0; j < target_length; j++) {
+          printf("%c", packet[offset++]);
+        }
+        printf("\n");
+        
+
       } else if (type == 46) {
         // RRSIG
         printf("(RRSIG Resource Record Signature)\n");
@@ -506,6 +537,30 @@ void print_packet(unsigned char *response, int length) {
 
         printf("%s\n", base64Text);
         offset += len;
+
+      } else if (type == 65) {
+        // HTTPS
+        printf("(HTTPS RR type)\n"); 
+        // https://datatracker.ietf.org/doc/rfc9460/?include_text=1
+
+        unsigned char *s = packet + offset;
+        //hexdump(packet+offset, rdlength);
+
+        int priority;
+        int weight;
+        int target_length;
+        CONSUME_16BIT(priority);
+        CONSUME_16BIT(weight);
+        CONSUME_8BIT(target_length);
+        printf("[+]          PRIORITY            : %d\n", priority);
+        printf("[+]          WEIGHT              : %d\n", weight);
+        printf("[+]          TARGET LENGTH       : %d\n", target_length);
+        printf("[+]          TARGET              : ");
+        for (int j = 0; j < target_length; j++) {
+          printf("%c", packet[offset++]);
+        }
+        printf("\n");
+        
 
       } else if (type == 257) {
         // CAA Certificate Authority Authorization

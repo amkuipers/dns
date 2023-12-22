@@ -12,6 +12,7 @@
 
 
 // Reverse an IP address for the PTR record
+// do not forget to free the returned string
 char* reverseIP(const char *ip) {
     // Split the IP address into segments
     char *segments[4];
@@ -51,11 +52,12 @@ struct dns_params parse_args(int argc, char *argv[]) {
     exit(1);
   }
 
-  params.hostname = argv[1];
-  if (strlen(params.hostname) > 255) {
+  if (strlen(argv[1]) > 255) {
     fprintf(stderr, "[-] Hostname too long.");
     exit(1);
   }
+  params.hostname = argv[1];
+
 
   if (argc >= 3) {
     params.dns_type = argv[2];

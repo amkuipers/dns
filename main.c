@@ -45,10 +45,10 @@ int main(int argc, char *argv[]) {
     printf("[+] Querying DNS type %d = %s\n", query_type, get_type(query_type));
 
     // Construct the DNS query
-    unsigned char query[512]; // UDP max 512 bytes
+    char query[512]; // UDP max 512 bytes
     memset(query, 0, sizeof(query));
     int queryLen = 0;
-    unsigned char *name = params.hostname;
+    char *name = params.hostname;
     if (query_type == 12) {
       // PTR record type
       name = params.arpa_name;

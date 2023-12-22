@@ -6,7 +6,7 @@
 // queryLen: the length of the query buffer (will be updated)
 // hostname: the hostname to query
 // query_type: the query type (A, MX, etc.) as integer
-void constructDNSQuery(unsigned char *query, int *queryLen, char *hostname, int query_type) {
+void constructDNSQuery(char *query, int *queryLen, char *hostname, int query_type) {
   // Header section
   // ID (client supplied)
   query[(*queryLen)++] = 0x12; 
