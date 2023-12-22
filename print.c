@@ -390,11 +390,11 @@ void print_packet(unsigned char *response, int length) {
         CONSUME_16BIT(priority);
         CONSUME_16BIT(weight);
         CONSUME_16BIT(port);
-        CONSUME_8BIT(target_length);
+        //CONSUME_8BIT(target_length);
         printf("[+]          PRIORITY            : %d\n", priority);
         printf("[+]          WEIGHT              : %d\n", weight);
         printf("[+]          PORT                : %d\n", port);
-        printf("[+]          TARGET LENGTH       : %d\n", target_length);
+        //printf("[+]          TARGET LENGTH       : %d\n", target_length);
         printf("[+]          TARGET              : ");
         print_domain(packet + offset);
 
