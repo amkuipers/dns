@@ -582,6 +582,40 @@ void print_packet(unsigned char *response, int length) {
         printf("%s\n", base64Text);
         offset += len;
 
+      } else if (type == 51) {
+        // NSEC3PARAM
+        printf("(NSEC3PARAM Next Secure)\n");
+        // https://en.wikipedia.org/wiki/NSEC3
+        // https://datatracker.ietf.org/doc/html/rfc5155
+        // https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-13
+
+        unsigned char *s = packet + offset;
+        //hexdump(packet+offset, rdlength);
+
+        int hash_algorithm;
+        int flags;
+        int iterations;
+        int salt_length;
+        CONSUME_8BIT(hash_algorithm);
+        CONSUME_8BIT(flags);
+        CONSUME_16BIT(iterations);
+        CONSUME_8BIT(salt_length);
+        printf("[+]          HASH ALGORITHM      : %d (1=SHA-1, 2=SHA-256, 3=GOST R 34.11-94, 4=SHA-384) \n", hash_algorithm);
+        // 1 = SHA-1
+        // 2 = SHA-256
+        // 3 = GOST R 34.11-94
+        // 4 = SHA-384
+        // 5-255 = Unassigned
+
+        printf("[+]          FLAGS               : %d\n", flags);
+        printf("[+]          ITERATIONS          : %d\n", iterations);
+        printf("[+]          SALT LENGTH         : %d\n", salt_length);
+        printf("[+]          SALT                : ");
+        for (int j = 0; j < salt_length; j++) {
+          printf("%02x", packet[offset++]);
+        }
+        printf("\n");
+
       } else if (type == 65) {
         // HTTPS
         printf("(HTTPS RR type)\n"); 
