@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
     hexdump(query, queryLen);
 
     if (params.useTCP) {
-      printf("[+] TCP DNS query:\n");
+      printf("[+] TCP DNS query: 0x%02x%02x\n", query[0], query[1]);
       print_packet(query+2, queryLen-2);
     } else {
       printf("[+] UDP DNS query:\n");
@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
     hexdump(response, responseLen);
 
     if (params.useTCP) {
-      printf("[+] TCP DNS response:\n");
+      printf("[+] TCP DNS response: 0x%02x%02x\n", response[0], response[1]);
       print_packet(response+2, responseLen-2);
     } else {
       printf("[+] UDP DNS response:\n");

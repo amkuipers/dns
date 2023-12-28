@@ -154,10 +154,10 @@ void print_packet(unsigned char *response, int length) {
   CONSUME_16BIT(nscount);
   CONSUME_16BIT(arcount);
 
-  printf("[+] QDCOUNT: %2d; 16bit number of entries in the query section (fixed 1 when query)\n", qdcount);
-  printf("[+] ANCOUNT: %2d; 16bit number of answers\n", ancount);
-  printf("[+] NSCOUNT: %2d; 16bit number of name server resource records\n", nscount);
-  printf("[+] ARCOUNT: %2d; 16bit number of resource records in the additional records\n", arcount);
+  printf("[+] QDCOUNT: 0x%04x=%2d; 16bit number of entries in the query section (fixed 1 when query)\n", qdcount, qdcount);
+  printf("[+] ANCOUNT: 0x%04x=%2d; 16bit number of answers\n", ancount, ancount);
+  printf("[+] NSCOUNT: 0x%04x=%2d; 16bit number of name server resource records\n", nscount, nscount);
+  printf("[+] ARCOUNT: 0x%04x=%2d; 16bit number of resource records in the additional records\n", arcount, arcount);
 
   // QDCOUNT is the number of entries in the question section of a query.
   // ANCOUNT is the number of resource records in the answer section of a response.
@@ -180,8 +180,12 @@ void print_packet(unsigned char *response, int length) {
   CONSUME_16BIT(qtype);
   CONSUME_16BIT(qclass);
 
-  printf("[+] QTYPE  : %d; 16bit record type= %s\n", qtype, get_type(qtype));
-  printf("[+] QCLASS : %d; 16bit (should be 1=Internet)\n", qclass);
+  printf("[+] QTYPE  : 0x%04x=%d; 16bit record type= %s\n", qtype, qtype, get_type(qtype));
+  printf("[+] QCLASS : 0x%04x=%d; 16bit (should be 1=Internet)\n", qclass, qclass);
+
+  // offset is the current offset in the packet, and could be +2 for TCP
+  //printf("[?] offset : 0x%04x=%d (+2 for TCP)\n", offset, offset);
+  //printf("[?] length : 0x%04x=%d\n", length, length);
 
 
   if (qr==0 && (offset < length)) {
@@ -195,14 +199,55 @@ void print_packet(unsigned char *response, int length) {
     printf("[+] Answer section:\n");
     for (int i = 0; i < answers; i++) {
 
-      printf("[+] Answer %d of %d\n", i + 1, answers); // answer 1, 2, ..
+      //printf("[+] Answer %d of %d\n", i + 1, answers); // answer 1, 2, ..
       
-      printf("[+]     OFFSET   : 0x%08x\n", offset);
+      /**
+       * Answer Section: This section contains the resource records of 
+       * the queried type that are associated with the queried domain name. 
+       * For example, if you queried the A records for example.com, the 
+       * Answer section would contain the A records for example.com.
+       * 
+       * Authority Section: This section contains resource records that 
+       * point toward an authoritative name server for the queried domain. 
+       * These are typically NS (Name Server) records.
+       * 
+       * Additional Section: This section contains resource records that 
+       * relate to the data in the other sections but are not strictly 
+       * necessary for the query. For example, if the Authority section 
+       * contains an NS record for a name server, the Additional section 
+       * might contain an A record that provides the IP address for that 
+       * name server.
+      */
+
+      // determine in what answer section we are
+      if (i < ancount) {
+        printf("[+] Answer section %d of %d\n", i + 1, ancount); // answer 1, 2, ..
+      } else if (i < ancount + nscount) {
+        printf("[+] Authority section %d of %d\n", i + 1 - ancount, nscount); // answer 1, 2, ..
+      } else {
+        printf("[+] Additional section %d of %d\n", i + 1 - ancount - nscount, arcount); // answer 1, 2, ..
+      }
+
+
+      //printf("[+]     OFFSET   : 0x%08x is byte 0x%02x 0x%02x\n", offset,packet[offset], packet[offset+1]);
+      //printf("[+]     OFFSET   : 0x%08x \n", offset); // +2 for TCP
       printf("[+]     NAME     : ");
-      unsigned char *p = packet + offset;
-      p = print_name(packet, p, packet + length);
+      
+      // root label
+      if (packet[offset] == 0) {
+        printf(". (root label)"); 
+        offset++;
+      } else {
+        // print the domain name
+        unsigned char *p = packet + offset;
+        p = print_name(packet, p, packet + length);
+        offset = p - packet; 
+      }
+
+
+
+
       printf("\n");
-      offset = p - packet; 
 
       // TYPE is the type of the resource record (1=A, 2=NS, 5=CNAME, 6=SOA, 12=PTR, 15=MX, 16=TXT, 28=AAAA, 33=SRV, 46=RRSIG, 47=NSEC, 48=DNSKEY, 255=ANY)
       int type;
@@ -218,10 +263,10 @@ void print_packet(unsigned char *response, int length) {
       CONSUME_32BIT(ttl);
       CONSUME_16BIT(rdlength); 
 
-      printf("[+]     TYPE     : %d; 16bit record type: %s\n", type, get_type(type));
-      printf("[+]     CLASS    : %d; 16bit (should be 1=Internet)\n", class);
-      printf("[+]     TTL      : %u sec; 32bit; %u minutes the answer is allowed to cache\n", ttl, ttl/60);
-      printf("[+]     RDLENGTH : %d; 16bit length of rdata\n", rdlength);
+      printf("[+]     TYPE     : 0x%04x=%d; 16bit record type: %s\n", type, type, get_type(type));
+      printf("[+]     CLASS    : 0x%04x=%d; 16bit (should be 1=Internet)\n", class, class);
+      printf("[+]     TTL      : 0x%08x=%u sec; 32bit; %u minutes the answer is allowed to cache\n", ttl, ttl, ttl/60);
+      printf("[+]     RDLENGTH : 0x%04x=%d; 16bit length of rdata\n", rdlength, rdlength);
 
       // RDATA is the data for the resource record
       printf("[+]     RDATA    : ");
@@ -560,6 +605,24 @@ void print_packet(unsigned char *response, int length) {
         }
         printf("\n");
         
+      } else if (type == 99) {
+        // SPF
+        printf("(SPF Sender Policy Framework)\n");
+        // https://en.wikipedia.org/wiki/Sender_Policy_Framework
+        // https://datatracker.ietf.org/doc/html/rfc7208
+        // https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-12
+
+        unsigned char *s = packet + offset;
+        //hexdump(packet+offset, rdlength);
+
+        int target_length;
+        CONSUME_8BIT(target_length);
+        printf("[+]          TARGET LENGTH       : %d\n", target_length);
+        printf("[+]          TARGET              : ");
+        for (int j = 0; j < target_length; j++) {
+          printf("%c", packet[offset++]);
+        }
+        printf("\n");
 
       } else if (type == 257) {
         // CAA Certificate Authority Authorization
